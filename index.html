@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Gojo Vip · Server Status</title>
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
@@ -18,31 +18,38 @@
         body {
             font-family: 'Inter', sans-serif;
             background: #0a0508;
-            min-height: 100vh;
             width: 100%;
-            min-height: 100vh;
+            height: 100vh;
+            overflow: hidden;
             background: radial-gradient(circle at 20% 30%, rgba(155, 29, 44, 0.2), transparent 60%),
                         radial-gradient(circle at 80% 70%, rgba(107, 21, 32, 0.25), transparent 60%),
                         #0a0508;
+        }
+
+        /* FULLSCREEN CONTAINER */
+        .fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* OFF STATE CARD */
+        .off-container {
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
-        }
-
-        /* OFF STATE CARD - persis seperti tampilan Gojo Vip */
-        .off-container {
             width: 100%;
-            max-width: 450px;
-            animation: fadeScale 0.6s ease-out;
-        }
-
-        @keyframes fadeScale {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
+            height: 100%;
+            padding: 20px;
+            overflow-y: auto;
         }
 
         .off-card {
+            max-width: 450px;
+            width: 100%;
             background: rgba(20, 10, 14, 0.85);
             backdrop-filter: blur(12px);
             border-radius: 32px;
@@ -52,12 +59,12 @@
             position: relative;
             overflow: hidden;
             text-align: center;
-            transition: all 0.3s ease;
+            animation: fadeScale 0.6s ease-out;
         }
 
-        .off-card:hover {
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7), 0 0 30px rgba(196, 30, 58, 0.7);
-            border-color: rgba(155, 29, 44, 0.5);
+        @keyframes fadeScale {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
         }
 
         .off-card::before {
@@ -225,21 +232,59 @@
             box-shadow: 0 0 15px rgba(155, 29, 44, 0.6);
         }
 
-        /* Redirect Countdown */
-        .redirect-info {
-            margin-top: 20px;
-            padding: 10px;
-            background: rgba(155, 29, 44, 0.1);
-            border-radius: 12px;
-            font-size: 12px;
-            color: #c41e3a;
-            position: relative;
-            z-index: 2;
-            border: 1px solid rgba(155, 29, 44, 0.3);
+        /* ON STATE - IFRAME DI DALAM APK */
+        .on-container {
+            width: 100%;
+            height: 100%;
+            background: #000;
         }
 
-        .redirect-info i {
-            margin-right: 6px;
+        .on-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        /* LOADER IFRAME */
+        .iframe-loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 5, 8, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 9999;
+            backdrop-filter: blur(8px);
+        }
+
+        .iframe-loader .spinner {
+            width: 60px;
+            height: 60px;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-top: 3px solid #c41e3a;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+            box-shadow: 0 0 20px rgba(196, 30, 58, 0.5);
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .iframe-loader p {
+            color: #b89aa3;
+            font-size: 14px;
+            letter-spacing: 2px;
+        }
+
+        .hidden {
+            display: none !important;
         }
 
         @media (max-width: 480px) {
@@ -260,13 +305,20 @@
 </head>
 <body>
 
-
+<!-- 
+    ==========================================================
+    ✨ UBAH STATUS DI SINI ✨
+    
+    Ganti "off" menjadi "on" → LANGSUNG TAMPIL WEB DI DALEM APK
+    Ganti "on" menjadi "off" → TAMPILKAN halaman SERVER OFF
+    ==========================================================
+-->
 <div id="app" data-status="off"></div>
 <!-- ========================================================== -->
 
 
 <!-- OFF STATE (tampilan server off) -->
-<div id="offState" class="off-container">
+<div id="offState" class="fullscreen off-container">
     <div class="off-card">
         <div class="logo">
             <div class="logo-glow"></div>
@@ -293,25 +345,78 @@
     </div>
 </div>
 
-<script>
+<!-- ON STATE (iframe di dalem APK, bukan ke Chrome) -->
+<div id="onState" class="fullscreen on-container hidden">
+    <div id="iframeLoader" class="iframe-loader">
+        <div class="spinner"></div>
+        <p>Menghubungkan ke server...</p>
+    </div>
+    <iframe id="serverFrame" src="about:blank"></iframe>
+</div>
 
+<script>
+    // =================================================
+    // BACA STATUS DARI DIV data-status
+    // "off" = tampilkan halaman offline
+    // "on"  = tampilkan web di DALEM IFRAME (tetap di APK)
+    // =================================================
     const appDiv = document.getElementById('app');
     let serverStatus = appDiv.getAttribute('data-status'); // "off" atau "on"
     
     const offState = document.getElementById('offState');
+    const onState = document.getElementById('onState');
+    const serverFrame = document.getElementById('serverFrame');
+    const iframeLoader = document.getElementById('iframeLoader');
+    
     const SERVER_URL = "http://centralvex.anti-ddos.me:4000";
     
-    if (serverStatus === "off") {
-      
-        offState.style.display = 'none';
+    if (serverStatus === "on") {
+        // TAMPILKAN IFRAME DI DALEM APK (GAK KE CHROME)
+        offState.classList.add('hidden');
+        onState.classList.remove('hidden');
         
+        // Load iframe
+        serverFrame.src = SERVER_URL;
         
-        window.location.href = SERVER_URL;
+        // Hilangkan loader setelah iframe load
+        serverFrame.onload = function() {
+            setTimeout(() => {
+                iframeLoader.classList.add('hidden');
+            }, 500);
+        };
+        
+        // Fallback loader
+        setTimeout(() => {
+            if (!iframeLoader.classList.contains('hidden')) {
+                iframeLoader.classList.add('hidden');
+            }
+        }, 8000);
+        
+        // Jika error
+        serverFrame.onerror = function() {
+            iframeLoader.classList.add('hidden');
+            console.error("Gagal load server");
+        };
         
     } else {
-
-        offState.style.display = 'flex';
+        // TAMPILKAN OFF STATE
+        offState.classList.remove('hidden');
+        onState.classList.add('hidden');
     }
+    
+    // MATIKAN SEMUA LINK YANG MAU BUKA KE CHROME/EXTERNAL
+    // Biar semua tetep di dalem iframe/APK
+    document.addEventListener('click', function(e) {
+        let target = e.target.closest('a');
+        if (target && target.getAttribute('href') && target.getAttribute('target') === '_blank') {
+            e.preventDefault();
+            // Biarkan link telegram tetep bisa dibuka? 
+            // Kalo mau buka di dalem bisa pake ini
+            if (target.href.includes('t.me')) {
+                // optional, bisa dibiarkan atau di prevent
+            }
+        }
+    });
 </script>
 
 </body>
